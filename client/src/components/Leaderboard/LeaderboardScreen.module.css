@@ -125,6 +125,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.userId {
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: monospace;
 }
 
 .wins {

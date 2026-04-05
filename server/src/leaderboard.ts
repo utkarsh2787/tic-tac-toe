@@ -36,6 +36,25 @@ function createLeaderboards(
   }
 }
 
+function getUsernames(
+  nk: nkruntime.Nakama,
+  userIds: string[]
+): { [userId: string]: string } {
+  var result: { [userId: string]: string } = {};
+  try {
+    var users = nk.usersGetId(userIds);
+    for (var i = 0; i < users.length; i++) {
+      result[users[i].userId] = users[i].username || users[i].userId.slice(0, 8);
+    }
+  } catch (e) {
+    // fallback: use userId slice
+    for (var j = 0; j < userIds.length; j++) {
+      result[userIds[j]] = userIds[j].slice(0, 8);
+    }
+  }
+  return result;
+}
+
 function recordResult(
   nk: nkruntime.Nakama,
   logger: nkruntime.Logger,
@@ -44,11 +63,13 @@ function recordResult(
   streaks: { [userId: string]: number }
 ): void {
   try {
+    var usernames = getUsernames(nk, allPlayerIds);
+
     if (winnerId && winnerId !== "draw") {
       nk.leaderboardRecordWrite(
         LEADERBOARD_WINS,
         winnerId,
-        "",
+        usernames[winnerId] || "",
         1,
         0,
         {}
@@ -57,7 +78,7 @@ function recordResult(
       nk.leaderboardRecordWrite(
         LEADERBOARD_STREAKS,
         winnerId,
-        "",
+        usernames[winnerId] || "",
         newStreak,
         0,
         {}
@@ -71,7 +92,7 @@ function recordResult(
         nk.leaderboardRecordWrite(
           LEADERBOARD_LOSSES,
           uid,
-          "",
+          usernames[uid] || "",
           1,
           0,
           {}

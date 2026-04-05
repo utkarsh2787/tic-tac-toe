@@ -66,7 +66,8 @@ export function LeaderboardScreen() {
                   {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
                 </span>
                 <span className={styles.player}>
-                  {record.username || record.ownerId.slice(0, 8)}
+                  {record.username || "Player"}
+                  <span className={styles.userId}>#{record.ownerId.slice(0, 6)}</span>
                 </span>
                 <span className={styles.wins}>{record.score}</span>
               </div>
