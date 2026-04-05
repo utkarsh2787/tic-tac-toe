@@ -2,12 +2,25 @@
 
 Real-time multiplayer Tic-Tac-Toe built with **Nakama** (server-authoritative backend) and **React** (TypeScript frontend).
 
+## Live Demo
+
+| | URL |
+|---|---|
+| **Frontend** | https://tic-tac-seven-pearl.vercel.app |
+| **Nakama Server** | https://tic-tac-nakama.onrender.com |
+| **Nakama Healthcheck** | https://tic-tac-nakama.onrender.com/healthcheck |
+
+> Note: Nakama is hosted on Render free tier — it sleeps after 15 minutes of inactivity. The frontend automatically wakes it up and shows a "Waking up server..." banner (~30s) on first load.
+
+---
+
 ## Features
 
 - **Server-authoritative game logic** — all moves validated on server, no client-side cheating
-- **Real-time matchmaking** — auto-pair with available players instantly
-- **30-second turn timer** — automatic forfeit on timeout
-- **Leaderboard** — global rankings by wins
+- **Real-time matchmaking** — auto-pair with available players instantly via RPC
+- **30-second turn timer** — automatic forfeit on timeout, enforced server-side
+- **Play vs Computer** — local AI opponent with Easy (random) and Hard (minimax) difficulty
+- **Leaderboard** — global rankings by wins with username + unique ID display
 - **Graceful reconnect** — automatic socket reconnection with exponential backoff
 - **Concurrent sessions** — multiple games run in isolated Nakama match instances
 
@@ -18,7 +31,7 @@ Real-time multiplayer Tic-Tac-Toe built with **Nakama** (server-authoritative ba
 ```
 ┌─────────────────┐      WebSocket      ┌──────────────────────┐
 │  React Client   │ ←─────────────────→ │   Nakama Server      │
-│  (TypeScript)   │     REST (RPC)      │   (TypeScript TS     │
+│  (TypeScript)   │     REST (RPC)      │   (TypeScript        │
 │  Zustand state  │ ←─────────────────→ │    runtime module)   │
 └─────────────────┘                     └──────────┬───────────┘
                                                    │
@@ -33,51 +46,60 @@ Real-time multiplayer Tic-Tac-Toe built with **Nakama** (server-authoritative ba
 
 ```
 tic-tac/
-├── server/               # Nakama TypeScript runtime module
+├── server/                   # Nakama TypeScript runtime module (plugin)
 │   ├── src/
-│   │   ├── constants.ts  # OpCodes, tick rates, leaderboard IDs
-│   │   ├── types.ts      # MatchState, payload interfaces
-│   │   ├── utils.ts      # checkWinner, validateMove, buildEmptyBoard
-│   │   ├── leaderboard.ts # createLeaderboards, recordResult
-│   │   ├── match_handler.ts # All 7 Nakama match handler functions
-│   │   ├── match_rpc.ts  # rpcFindMatch, rpcGetLeaderboard
-│   │   └── main.ts       # InitModule — registers RPCs + match handler
-│   ├── tsconfig.json     # ES5 target, outFile: build/index.js
-│   ├── local.yml         # Nakama server config
-│   └── Dockerfile        # Multi-stage: tsc compile → nakama image
+│   │   ├── constants.ts      # OpCodes, tick rates, leaderboard IDs
+│   │   ├── types.ts          # MatchState, payload interfaces
+│   │   ├── utils.ts          # checkWinner, validateMove, buildEmptyBoard
+│   │   ├── leaderboard.ts    # createLeaderboards, recordResult
+│   │   ├── match_handler.ts  # All 7 Nakama match handler functions
+│   │   ├── match_rpc.ts      # rpcFindMatch, rpcGetLeaderboard
+│   │   └── main.ts           # InitModule — registers RPCs + match handler
+│   ├── build/index.js        # Compiled ES5 output loaded by Nakama
+│   ├── tsconfig.json         # ES5 target, outFile: build/index.js
+│   ├── local.yml             # Nakama server config
+│   ├── Dockerfile            # Multi-stage: tsc compile → nakama image
+│   └── Dockerfile.render     # Render.com deployment variant
 │
-├── client/               # React + Vite frontend
+├── client/                   # React + Vite frontend
 │   ├── src/
-│   │   ├── lib/          # nakama.ts singleton, constants.ts (mirrored opcodes)
-│   │   ├── hooks/        # useNakama, useMatchmaker, useMatch
-│   │   ├── store/        # Zustand: authStore, gameStore
-│   │   ├── components/   # Auth, Lobby, Game, Leaderboard
-│   │   └── types/        # game.ts type definitions
-│   └── Dockerfile.prod   # nginx static build for production
+│   │   ├── lib/              # nakama.ts singleton, constants.ts, minimax.ts
+│   │   ├── hooks/            # useNakama, useMatchmaker, useMatch, useLocalGame
+│   │   ├── store/            # Zustand: authStore, gameStore
+│   │   ├── components/       # Auth, Lobby, Game, LocalGame, Leaderboard
+│   │   └── types/            # game.ts type definitions
+│   └── Dockerfile.prod       # nginx static build for production
 │
-├── docker-compose.yml    # Local dev (postgres + nakama + client dev server)
-├── docker-compose.prod.yml # Production overrides
-└── .env.example          # Environment variable template
+├── docker-compose.yml        # Local dev (postgres + nakama + client dev server)
+├── docker-compose.prod.yml   # Production overrides
+├── render.yaml               # Render.com blueprint (Nakama + PostgreSQL)
+└── .env.example              # Environment variable template
 ```
 
 ### Key Design Decisions
 
-**Why RPC-based matchmaking instead of Nakama's built-in matchmaker?**
-The `find_match` RPC queries for open match rooms and either joins an existing one or creates a new one. This gives full control over lobby logic and is easier to debug. Nakama's built-in matchmaker is better for skill-based ELO systems.
+**Server-authoritative architecture**
+All game logic runs inside Nakama's JS runtime. Clients send intents (move position), server validates and broadcasts state. Clients cannot cheat or manipulate game state.
 
-**Why ES5 TypeScript target for the server?**
-Nakama's JS runtime (based on goja) executes ES5. The `tsconfig.json` `"files"` array controls file concatenation order — `constants.ts` and `types.ts` must precede all files that reference them, with `main.ts` last.
+**RPC-based matchmaking vs Nakama's built-in matchmaker**
+The `find_match` RPC queries for open match rooms and either joins an existing one or creates a new one. This gives full control over lobby logic. Nakama's built-in matchmaker is better for skill-based ELO systems but adds complexity not needed here.
 
-**Why Zustand instead of Redux?**
-The game state is simple enough that Zustand's minimal API suffices. The store's reducer-style actions (`applyStart`, `applyUpdate`, `applyDone`) are independently testable.
+**ES5 TypeScript target for server**
+Nakama's JS runtime (based on goja) executes ES5. The `tsconfig.json` `"files"` array controls file concatenation order into a single `build/index.js` — `constants.ts` and `types.ts` must precede all files that reference them.
 
-**Match lifecycle:**
+**Zustand for client state**
+The game state is simple enough that Zustand's minimal API suffices. Reducer-style actions (`applyStart`, `applyUpdate`, `applyDone`) keep state transitions predictable.
+
+**Play vs Computer (client-side only)**
+The AI opponent runs entirely in the browser using minimax algorithm — no server involved. Easy mode uses random moves, Hard mode uses full minimax (unbeatable).
+
+**Match lifecycle**
 1. Player A calls `find_match` RPC → creates match (label: `open:1`)
 2. Player B calls `find_match` RPC → finds open match, joins it
-3. `matchJoin` detects 2 players → assigns marks, broadcasts `START`
+3. `matchJoin` detects 2 players → assigns marks (X/O), broadcasts `START`
 4. Each turn: client sends `MOVE` opcode → `matchLoop` validates → broadcasts `UPDATE`
 5. Timer: `matchLoop` ticks every 200ms → broadcasts `TIMER_TICK` every second
-6. On win/draw/timeout → broadcasts `DONE` → `matchLoop` returns `null` (match ends)
+6. On win/draw/timeout → broadcasts `DONE` → records leaderboard → match ends
 
 ---
 
@@ -88,29 +110,30 @@ The game state is simple enough that Zustand's minimal API suffices. The store's
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2
 - Node.js 18+ (for local development without Docker)
 
-### Local Development (Docker)
+### Local Development (Docker) — Recommended
 
 ```bash
-# Clone and start everything
+# Clone the repo
 git clone <repo-url>
 cd tic-tac
-docker-compose up --build
+
+# Start everything (Postgres + Nakama + React dev server)
+docker compose up --build
 ```
 
-- Frontend: http://localhost:5173
-- Nakama console: http://localhost:7351 (admin / admin123)
-- Nakama API: http://localhost:7350
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Nakama API | http://localhost:7350 |
+| Nakama Console | http://localhost:7351 (admin / admin123) |
 
 ### Local Development (without Docker)
 
-**Backend:**
+**Backend (compile plugin):**
 ```bash
 cd server
 npm install
-npm run build        # Compiles TypeScript to build/index.js
-
-# Start Nakama separately (requires nakama binary + postgres)
-nakama --config local.yml --database.address postgres:localdb@localhost:5432/nakama
+npm run build   # outputs build/index.js
 ```
 
 **Frontend:**
@@ -122,6 +145,7 @@ npm install
 echo "VITE_NAKAMA_HOST=127.0.0.1" > .env.local
 echo "VITE_NAKAMA_PORT=7350" >> .env.local
 echo "VITE_NAKAMA_USE_SSL=false" >> .env.local
+echo "VITE_NAKAMA_SERVER_KEY=defaultkey" >> .env.local
 
 npm run dev
 ```
@@ -130,49 +154,25 @@ npm run dev
 
 ## Deployment
 
-### Option A: Heroic Cloud (Managed Nakama — Recommended)
+### Actual Deployment Used
 
-1. Sign up at [heroiclabs.com](https://heroiclabs.com)
-2. Create a new project, note your server key and host
-3. Upload the compiled module:
-   ```bash
-   cd server && npm install && npm run build
-   # Upload build/index.js via Heroic Cloud dashboard
-   ```
-4. Deploy the frontend to Vercel/Netlify:
-   ```bash
-   cd client
-   VITE_NAKAMA_HOST=your-project.heroiclabs.com \
-   VITE_NAKAMA_PORT=443 \
-   VITE_NAKAMA_USE_SSL=true \
-   npm run build
-   # Upload dist/ to Vercel/Netlify
-   ```
+**Backend — Render.com (free tier)**
+- Nakama runs as a Docker service via `Dockerfile.render`
+- PostgreSQL provisioned via `render.yaml` blueprint
+- Deploy: connect GitHub repo → Render detects `render.yaml` → auto-deploys
 
-### Option B: Self-Hosted (Docker on any VPS)
-
-1. Provision a VM (DigitalOcean Droplet, AWS EC2, GCP Compute, etc.) with Docker installed
-2. Point a domain at the VM's IP; set up DNS:
-   - `api.yourdomain.com` → VM IP (for Nakama)
-   - `yourdomain.com` → VM IP (for frontend) or use Vercel
-3. Copy project to VM:
-   ```bash
-   scp -r ./tic-tac user@your-vm:/opt/tic-tac
-   ```
-4. Create `.env` from `.env.example`:
-   ```bash
-   cp .env.example .env
-   # Fill in DB_PASSWORD, CONSOLE_PASSWORD, NAKAMA_HOST
-   ```
-5. Build and start:
-   ```bash
-   docker-compose \
-     -f docker-compose.yml \
-     -f docker-compose.prod.yml \
-     up --build -d
-   ```
-
-**TLS/HTTPS**: For HTTPS, add Traefik or Caddy as a reverse proxy in front of Nakama. Nakama's port 7350 handles both HTTP API and WebSocket upgrades.
+**Frontend — Vercel (free tier)**
+```bash
+cd client
+vercel --prod
+```
+Environment variables set in Vercel dashboard:
+```
+VITE_NAKAMA_HOST     = tic-tac-nakama.onrender.com
+VITE_NAKAMA_PORT     = 443
+VITE_NAKAMA_USE_SSL  = true
+VITE_NAKAMA_SERVER_KEY = defaultkey
+```
 
 ---
 
@@ -190,7 +190,7 @@ npm run dev
 | Code | Name | Payload |
 |---|---|---|
 | 1 | `UPDATE` | `{ board, currentTurn, deadline }` |
-| 2 | `START` | `{ marks, deadline }` |
+| 2 | `START` | `{ marks, currentTurn, deadline }` |
 | 3 | `DONE` | `{ board, winner, winnerMark }` |
 | 4 | `REJECTED` | `{ reason }` |
 | 5 | `OPPONENT_LEFT` | *(none)* |
@@ -214,27 +214,28 @@ npm run dev
 
 ## Testing Multiplayer
 
-### Method 1: Two browser tabs
-1. Open http://localhost:5173 in two separate browser windows (use private/incognito for the second to get a different device ID)
-2. Enter different usernames and click "Play Now" in both
-3. Both should be matched and the game starts
+### Method 1: Two browser windows (easiest)
+1. Open https://tic-tac-seven-pearl.vercel.app in a normal window
+2. Open same URL in a **private/incognito** window (different device ID = different player)
+3. Enter different usernames in each, click **Find Match** in both
+4. Both players are matched and game starts automatically
 
-### Method 2: Using curl to inspect state
+### Method 2: Local with curl
 ```bash
-# Authenticate to get a session token
+# Authenticate
 curl -X POST http://localhost:7350/v2/account/authenticate/device \
   -H "Authorization: Basic ZGVmYXVsdGtleTo=" \
   -d '{"id":"test-device-001","create":true}'
 
-# Then call RPC with the token
+# Call find_match RPC with the token
 curl -X POST http://localhost:7350/v2/rpc/find_match \
   -H "Authorization: Bearer <token>" \
   -d '{"fast":false}'
 ```
 
 ### Method 3: Nakama Console
-Visit http://localhost:7351 (admin / admin123) to:
-- View active matches under **Matches**
-- View player accounts under **Accounts**
-- Inspect leaderboard records under **Leaderboards**
-- Send match signals and inspect state in real time
+Visit http://localhost:7351 (admin / admin123):
+- **Matches** — view active game sessions
+- **Accounts** — view registered players
+- **Leaderboards** — inspect win/loss records
+- **Runtime** — verify plugin RPCs are registered
