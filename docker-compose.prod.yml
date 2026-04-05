@@ -1,0 +1,32 @@
+version: "3.8"
+
+# Production overrides — use with:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+    ports: []  # Don't expose DB port publicly
+    restart: always
+
+  nakama:
+    restart: always
+    environment:
+      NAKAMA_CONSOLE_USERNAME: admin
+      NAKAMA_CONSOLE_PASSWORD: "${CONSOLE_PASSWORD}"
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.prod
+    image: tic-tac-toe-client
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      VITE_NAKAMA_HOST: "${NAKAMA_HOST}"
+      VITE_NAKAMA_PORT: "443"
+      VITE_NAKAMA_USE_SSL: "true"
+    depends_on:
+      - nakama

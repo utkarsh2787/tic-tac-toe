@@ -1,0 +1,21 @@
+{
+  "files": [
+    "./nakama-runtime.d.ts",
+    "./src/constants.ts",
+    "./src/types.ts",
+    "./src/utils.ts",
+    "./src/leaderboard.ts",
+    "./src/match_handler.ts",
+    "./src/match_rpc.ts",
+    "./src/main.ts"
+  ],
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["es5", "es2015.iterable"],
+    "outFile": "./build/index.js",
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

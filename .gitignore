@@ -1,0 +1,26 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Build outputs
+server/build/
+client/dist/
+client/.env.local
+client/.env.production
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+acme.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

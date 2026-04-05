@@ -1,0 +1,13 @@
+{
+  "name": "tic-tac-toe-nakama-server",
+  "version": "1.0.0",
+  "description": "Nakama TypeScript runtime module for Tic-Tac-Toe",
+  "scripts": {
+    "build": "npx tsc",
+    "build:watch": "npx tsc --watch",
+    "lint": "npx eslint src/**/*.ts"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.5"
+  }
+}

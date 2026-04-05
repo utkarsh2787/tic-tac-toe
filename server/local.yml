@@ -1,0 +1,24 @@
+name: tic-tac-toe
+
+logger:
+  level: "DEBUG"
+  stdout: true
+
+runtime:
+  js_entrypoint: "build/index.js"
+  js_min_count: 4
+  js_max_count: 32
+
+console:
+  max_message_size_bytes: 4096
+
+socket:
+  max_message_size_bytes: 4096
+  ping_period_ms: 10000
+  pong_wait_ms: 25000
+
+session:
+  token_expiry_sec: 604800
+
+matchmaker:
+  max_tickets: 10
